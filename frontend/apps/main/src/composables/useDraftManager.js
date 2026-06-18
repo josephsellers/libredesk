@@ -1,8 +1,9 @@
-import { ref, watch } from 'vue'
+import { ref, watch, onScopeDispose } from 'vue'
 import { watchDebounced, useStorage, useEventListener } from '@vueuse/core'
 import { useConversationStore } from '@main/stores/conversation'
 import { MACRO_CONTEXT } from '@main/constants/conversation'
 import { getTextFromHTML } from '@shared-ui/utils/string.js'
+import { useEmitter } from '@main/composables/useEmitter'
 import api from '@main/api'
 
 /**
@@ -57,6 +58,7 @@ const isDraftEmpty = (draft) => {
  */
 export function useDraftManager (key, uploadedFiles = null) {
   const conversationStore = useConversationStore()
+  const emitter = useEmitter()
   const htmlContent = ref('')
   const textContent = ref('')
   const isLoading = ref(false)
@@ -170,7 +172,15 @@ export function useDraftManager (key, uploadedFiles = null) {
       removeLocalDraft(draftKey)
 
       // Load from store (drafts pre-fetched on app init)
-      const draft = conversationStore.getDraft(draftKey)
+      let draft = conversationStore.getDraft(draftKey)
+
+      // [PATCH] If not in store, refresh from API. Handles drafts created after
+      // app init (e.g. by AI assistant webhook processing or generate-reply).
+      if (!draft) {
+        await conversationStore.fetchAllDrafts()
+        draft = conversationStore.getDraft(draftKey)
+      }
+
       if (!draft) {
         resetState()
         return
@@ -273,6 +283,31 @@ export function useDraftManager (key, uploadedFiles = null) {
     if (document.visibilityState === 'hidden' && isDirty.value && key.value) {
       await syncDraftToBackend(key.value)
     }
+  })
+
+  // [PATCH] Listen for AI assistant events to auto-reload / clear the draft
+  // when the user is already viewing the conversation.
+  const onAIDraftReady = async (uuid) => {
+    if (key.value === uuid && !isLoading.value && !isTransitioning.value) {
+      removeLocalDraft(uuid)
+      skipNextSave.value = true
+      await loadDraft(uuid)
+    }
+  }
+
+  const onAIDraftCleared = async (uuid) => {
+    if (key.value === uuid && !isLoading.value && !isTransitioning.value) {
+      removeLocalDraft(uuid)
+      resetState()
+    }
+  }
+
+  emitter.on('ai:draft-ready', onAIDraftReady)
+  emitter.on('ai:draft-cleared', onAIDraftCleared)
+
+  onScopeDispose(() => {
+    emitter.off('ai:draft-ready', onAIDraftReady)
+    emitter.off('ai:draft-cleared', onAIDraftCleared)
   })
 
   return {
