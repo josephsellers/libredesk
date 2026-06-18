@@ -5,9 +5,9 @@ import "github.com/abhinavxd/libredesk/internal/envelope"
 // DeletePrivateMessage deletes a private note by UUID. Only messages with
 // private=true can be deleted (enforced by the SQL query); sent/incoming
 // messages are protected. Returns a NotFound error if no private note matches.
-func (m *Manager) DeletePrivateMessage(uuid string) error {
-	m.lo.Info("deleting private note", "uuid", uuid)
-	res, err := m.q.DeletePrivateMessage.Exec(uuid)
+func (m *Manager) DeletePrivateMessage(conversationUUID, messageUUID string) error {
+	m.lo.Info("deleting private note", "conversation_uuid", conversationUUID, "message_uuid", messageUUID)
+	res, err := m.q.DeletePrivateMessage.Exec(messageUUID, conversationUUID)
 	if err != nil {
 		m.lo.Error("error deleting private note", "error", err)
 		return envelope.NewError(envelope.GeneralError, m.i18n.T("globals.messages.somethingWentWrong"), nil)
