@@ -1,9 +1,34 @@
-import { ref, watch } from 'vue'
+import { ref, watch, onScopeDispose } from 'vue'
 import { useDebounceFn, useEventListener } from '@vueuse/core'
 import { useConversationStore } from '@main/stores/conversation'
+import { useEmitter } from '@main/composables/useEmitter'
 import { MACRO_CONTEXT } from '@main/constants/conversation'
 import { getTextFromHTML } from '@shared-ui/utils/string.js'
 import api from '@main/api'
+
+// [LOCAL] The AI assistant posts drafts with no type, which the API defaults to
+// 'reply', so that is the only type its events and refreshes can affect.
+const AI_DRAFT_TYPE = 'reply'
+
+// [LOCAL] Drafts are prefetched once at app init. The AI assistant creates most
+// of its drafts from a webhook, long after that prefetch and with no event to
+// announce it, so opening such a conversation would show nothing. Re-read the
+// list when the store has no draft for the conversation being opened. Throttled
+// and de-duplicated because the common case is a conversation with no draft at
+// all, and fetchAllDrafts replaces the whole store map.
+const REFRESH_THROTTLE_MS = 3000
+let lastDraftRefresh = 0
+let inflightDraftRefresh = null
+
+const refreshDraftsThrottled = (conversationStore) => {
+  if (inflightDraftRefresh) return inflightDraftRefresh
+  if (Date.now() - lastDraftRefresh < REFRESH_THROTTLE_MS) return Promise.resolve()
+  inflightDraftRefresh = conversationStore.fetchAllDrafts().finally(() => {
+    lastDraftRefresh = Date.now()
+    inflightDraftRefresh = null
+  })
+  return inflightDraftRefresh
+}
 
 const hasKeys = (obj, keys) => Boolean(obj) && keys.every(key => key in obj)
 
@@ -47,6 +72,7 @@ const sameDraft = (a, b) => {
 
 export function useDraftManager (conversationUUID, messageType, uploadedFiles = null) {
   const conversationStore = useConversationStore()
+  const emitter = useEmitter()
   const htmlContent = ref('')
   const textContent = ref('')
   const isLoading = ref(false)
@@ -88,6 +114,10 @@ export function useDraftManager (conversationUUID, messageType, uploadedFiles = 
     // Prefetch may still be in flight on a fresh page load; reading the store now would apply an empty draft.
     const before = htmlContent.value
     await conversationStore.draftsReady
+    // [LOCAL] Catch drafts the AI assistant created after the initial prefetch.
+    if (!conversationStore.conversationHasDraft(uuid)) {
+      await refreshDraftsThrottled(conversationStore)
+    }
     // If the user typed while drafts were still loading, keep their input instead of clobbering it.
     if (htmlContent.value === before) {
       applyDraft(conversationStore.getDraft(uuid, type))
@@ -160,6 +190,28 @@ export function useDraftManager (conversationUUID, messageType, uploadedFiles = 
     if (document.visibilityState === 'hidden' && conversationUUID.value && loadedKey.value === currentKey()) {
       save(conversationUUID.value, messageType.value)
     }
+  })
+
+  // [LOCAL] Reflect AI assistant actions in an editor the agent already has
+  // open. The sidebar refreshes the draft store before emitting, so these only
+  // re-apply store state. A private-note tab is left alone: the reply draft is
+  // updated in the store and picked up when the agent switches back to it.
+  const onAIDraftReady = async (uuid) => {
+    if (conversationUUID.value !== uuid || messageType.value !== AI_DRAFT_TYPE) return
+    await load(uuid, AI_DRAFT_TYPE)
+  }
+
+  const onAIDraftCleared = (uuid) => {
+    if (conversationUUID.value !== uuid || messageType.value !== AI_DRAFT_TYPE) return
+    applyDraft(null)
+  }
+
+  emitter.on('ai:draft-ready', onAIDraftReady)
+  emitter.on('ai:draft-cleared', onAIDraftCleared)
+
+  onScopeDispose(() => {
+    emitter.off('ai:draft-ready', onAIDraftReady)
+    emitter.off('ai:draft-cleared', onAIDraftCleared)
   })
 
   return {

@@ -51,6 +51,26 @@
         </AccordionContent>
       </AccordionItem>
 
+      <!-- AI Assistant -->
+      <AccordionItem value="ai_assistant" class="accordion-item">
+        <AccordionTrigger class="accordion-trigger">
+          {{ $t('conversation.sidebar.aiAssistant') }}
+        </AccordionTrigger>
+        <AccordionContent class="accordion-content">
+          <ConversationAIAssistant />
+        </AccordionContent>
+      </AccordionItem>
+
+      <!-- WooCommerce orders -->
+      <AccordionItem value="woocommerce" class="accordion-item">
+        <AccordionTrigger class="accordion-trigger">
+          {{ $t('conversation.sidebar.woocommerce') }}
+        </AccordionTrigger>
+        <AccordionContent class="accordion-content">
+          <ConversationWooCommerce />
+        </AccordionContent>
+      </AccordionItem>
+
       <!-- Information -->
       <AccordionItem value="information" class="accordion-item">
         <AccordionTrigger class="accordion-trigger">
@@ -135,6 +155,8 @@ import {
   AccordionTrigger
 } from '@shared-ui/components/ui/accordion'
 import ConversationInfo from './ConversationInfo.vue'
+import ConversationAIAssistant from './ConversationAIAssistant.vue'
+import ConversationWooCommerce from './ConversationWooCommerce.vue'
 import ConversationSideBarContact from '@/features/conversation/sidebar/ConversationSideBarContact.vue'
 import { SelectTag } from '@shared-ui/components/ui/select'
 import { handleHTTPError } from '@shared-ui/utils/http.js'
