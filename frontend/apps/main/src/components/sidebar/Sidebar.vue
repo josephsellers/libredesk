@@ -440,6 +440,15 @@ const viewToDelete = ref(null)
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
+                <SidebarMenuButton :isActive="isActiveParent('/inboxes/all')" @click="navigateToInbox('all')">
+                    <List />
+                    <span>
+                      {{ t('globals.messages.all') }}
+                    </span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
                 <SidebarMenuButton :isActive="isActiveParent('/inboxes/assigned')" @click="navigateToInbox('assigned')">
                     <User />
                     <span>{{ t('globals.terms.myInbox') }}</span>
@@ -460,15 +469,6 @@ const viewToDelete = ref(null)
                     <CircleDashed />
                     <span>
                       {{ t('globals.terms.unassigned') }}
-                    </span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              <SidebarMenuItem>
-                <SidebarMenuButton :isActive="isActiveParent('/inboxes/all')" @click="navigateToInbox('all')">
-                    <List />
-                    <span>
-                      {{ t('globals.messages.all') }}
                     </span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
