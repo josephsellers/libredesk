@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, START_LOCATION } from 'vue-router'
 import App from '@main/App.vue'
 import OuterApp from '@main/OuterApp.vue'
 import InboxLayout from '@main/layouts/inbox/InboxLayout.vue'
@@ -579,6 +579,16 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
+  // Force the default inbox landing to "All" on initial app entry, even when the
+  // entry URL is /inboxes/assigned (e.g. address-bar autocomplete, a stale
+  // bookmark, or a restored tab). Only the very first navigation is affected;
+  // clicking "My Inbox" later, and deep links to a specific conversation
+  // (/inboxes/assigned/conversation/...), are untouched.
+  if (from === START_LOCATION && to.path === '/inboxes/assigned') {
+    next('/inboxes/all')
+    return
+  }
+
   // Cancel in-flight requests.
   if (to.fullPath !== from.fullPath) {
     abortRouteScope()
