@@ -51,7 +51,7 @@ func handleUpsertConversationDraft(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.T("globals.messages.somethingWentWrong"), nil, envelope.InputError)
 	}
 
-	draft, err := app.conversation.UpsertConversationDraft(conv.ID, user.ID, req.Content, req.Meta)
+	draft, err := app.conversation.UpsertConversationDraft(conv.ID, req.Content, req.Meta)
 	if err != nil {
 		return sendErrorEnvelope(r, err)
 	}
@@ -59,19 +59,19 @@ func handleUpsertConversationDraft(r *fastglue.Request) error {
 	return r.SendEnvelope(draft)
 }
 
-// handleGetAllDrafts retrieves all drafts for the current user.
+// handleGetAllDrafts retrieves all shared drafts.
 func handleGetAllDrafts(r *fastglue.Request) error {
 	var (
 		app   = r.Context.(*App)
 		auser = r.RequestCtx.UserValue("user").(amodels.User)
 	)
 
-	user, err := app.user.GetAgentCachedOrLoad(auser.ID)
-	if err != nil {
+	// Verify the requester is a valid agent.
+	if _, err := app.user.GetAgentCachedOrLoad(auser.ID); err != nil {
 		return sendErrorEnvelope(r, err)
 	}
 
-	drafts, err := app.conversation.GetAllUserDrafts(user.ID)
+	drafts, err := app.conversation.GetAllDrafts()
 	if err != nil {
 		return sendErrorEnvelope(r, err)
 	}
@@ -79,7 +79,7 @@ func handleGetAllDrafts(r *fastglue.Request) error {
 	return r.SendEnvelope(drafts)
 }
 
-// handleDeleteConversationDraft deletes a draft for a conversation.
+// handleDeleteConversationDraft deletes a shared draft for a conversation.
 func handleDeleteConversationDraft(r *fastglue.Request) error {
 	var (
 		app   = r.Context.(*App)
@@ -87,12 +87,12 @@ func handleDeleteConversationDraft(r *fastglue.Request) error {
 		uuid  = r.RequestCtx.UserValue("uuid").(string)
 	)
 
-	user, err := app.user.GetAgentCachedOrLoad(auser.ID)
-	if err != nil {
+	// Verify the requester is a valid agent.
+	if _, err := app.user.GetAgentCachedOrLoad(auser.ID); err != nil {
 		return sendErrorEnvelope(r, err)
 	}
 
-	if err := app.conversation.DeleteConversationDraft(0, uuid, user.ID); err != nil {
+	if err := app.conversation.DeleteConversationDraft(0, uuid); err != nil {
 		return sendErrorEnvelope(r, err)
 	}
 

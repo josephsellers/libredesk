@@ -859,9 +859,12 @@ SET last_continuity_email_sent_at = NOW(),
 WHERE id = $1;
 
 -- name: upsert-conversation-draft
+-- Shared (per-conversation) drafts: user_id is hardcoded to 1 and the conflict
+-- target is conversation_id only, so a draft created by any agent (or the AI
+-- bot) is visible to all agents. Paired with the (conversation_id) unique index.
 INSERT INTO conversation_drafts (conversation_id, user_id, content, meta, updated_at)
-VALUES ($1, $2, $3, $4, NOW())
-ON CONFLICT (conversation_id, user_id)
+VALUES ($1, 1, $2, $3, NOW())
+ON CONFLICT (conversation_id)
 DO UPDATE SET content = EXCLUDED.content, meta = EXCLUDED.meta, updated_at = NOW()
 RETURNING *;
 
@@ -869,7 +872,6 @@ RETURNING *;
 SELECT cd.id, cd.conversation_id, cd.user_id, cd.content, cd.meta, cd.created_at, cd.updated_at, c.uuid as conversation_uuid
 FROM conversation_drafts cd
 INNER JOIN conversations c ON cd.conversation_id = c.id
-WHERE cd.user_id = $1
 ORDER BY cd.updated_at DESC;
 
 -- name: delete-conversation-draft
@@ -877,7 +879,7 @@ DELETE FROM conversation_drafts
 WHERE conversation_id IN (
   SELECT id FROM conversations
   WHERE ($1 > 0 AND id = $1) OR (NULLIF($2, '')::uuid IS NOT NULL AND uuid = NULLIF($2, '')::uuid)
-) AND user_id = $3;
+);
 
 -- name: delete-stale-drafts
 DELETE FROM conversation_drafts
