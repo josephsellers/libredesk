@@ -330,6 +330,8 @@ const getConversationMessage = (cuuid, uuid) =>
   http.get(`/api/v1/conversations/${cuuid}/messages/${uuid}`)
 const retryMessage = (cuuid, uuid) =>
   http.put(`/api/v1/conversations/${cuuid}/messages/${uuid}/retry`)
+const deleteMessage = (cuuid, uuid) =>
+  http.delete(`/api/v1/conversations/${cuuid}/messages/${uuid}`)
 const getConversationMessages = (uuid, params) =>
   http.get(`/api/v1/conversations/${uuid}/messages`, { params, abortOnRoute: true })
 const sendMessage = (uuid, data) =>
@@ -458,6 +460,7 @@ const updateAIProvider = (data) => http.put('/api/v1/ai/provider', data, {
     'Content-Type': 'application/json'
   }
 })
+const getAIProvider = () => http.get('/api/v1/ai/provider')
 const getContactNotes = (id) => http.get(`/api/v1/contacts/${id}/notes`)
 const createContactNote = (id, data) => http.post(`/api/v1/contacts/${id}/notes`, data, {
   headers: {
@@ -600,12 +603,14 @@ export default {
   updateAutomationRuleWeights,
   updateAutomationRulesExecutionMode,
   updateAIProvider,
+  getAIProvider,
   createAutomationRule,
   toggleAutomationRule,
   deleteAutomationRule,
   createConversation,
   sendMessage,
   retryMessage,
+  deleteMessage,
   createUser,
   createInbox,
   updateInbox,
