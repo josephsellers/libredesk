@@ -78,3 +78,5 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/knadh/smtppool => github.com/josephsellers/smtppool v1.3.1-libredesk
