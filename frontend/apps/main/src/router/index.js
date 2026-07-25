@@ -119,7 +119,7 @@ const routes = [
       {
         path: '/inboxes/:type(assigned|unassigned|all|mentioned)?',
         name: 'inboxes',
-        redirect: '/inboxes/assigned',
+        redirect: '/inboxes/all',
         component: InboxLayout,
         props: true,
         meta: { titleKey: 'globals.terms.inbox', hidePageHeader: true },
@@ -568,7 +568,7 @@ const routes = [
   {
     path: '/:pathMatch(.*)*',
     redirect: () => {
-      return '/inboxes/assigned'
+      return '/inboxes/all'
     }
   }
 ]
