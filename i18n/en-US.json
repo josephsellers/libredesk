@@ -113,6 +113,8 @@
   "admin.general.maxAllowedFileUploadSize.valid": "Max allowed file upload size should be between 1 and 500 MB",
   "admin.general.rootURL.description": "Root URL for the app. (No trailing slash).",
   "admin.general.rootURL.valid": "Root URL should be a valid URL",
+  "admin.general.sharedDrafts": "Shared drafts",
+  "admin.general.sharedDrafts.description": "Let agents see and continue a draft left by a colleague on the same conversation, instead of each agent keeping their own. Agents only ever see drafts on conversations they can already read.",
   "admin.general.siteName": "Site name",
   "admin.general.siteName.min": "Site name should be at least 1 character",
   "admin.general.showConversationSubject": "Show subject in conversation list",

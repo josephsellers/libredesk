@@ -221,6 +221,20 @@ func (m *Manager) GetAppRootURL() (string, error) {
 	return strings.Trim(string(rootURL), "\""), nil
 }
 
+// SharedDraftsEnabled reports whether drafts are shared across agents. False if
+// unset or unreadable, which keeps drafts private to their author by default.
+func (m *Manager) SharedDraftsEnabled() bool {
+	b, err := m.Get("app.shared_drafts")
+	if err != nil {
+		return false
+	}
+	var enabled bool
+	if err := json.Unmarshal(b, &enabled); err != nil {
+		return false
+	}
+	return enabled
+}
+
 // GetAppTimezone returns the configured app timezone, empty if unset or unreadable.
 func (m *Manager) GetAppTimezone() string {
 	b, err := m.Get("app.timezone")

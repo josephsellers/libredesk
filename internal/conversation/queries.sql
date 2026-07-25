@@ -892,25 +892,48 @@ SET last_continuity_email_sent_at = NOW(),
 WHERE id = $1;
 
 -- name: upsert-conversation-draft
+-- $6 = shared drafts. When enabled a draft belongs to the conversation rather
+-- than to the agent who typed it, so an existing draft for (conversation_id,
+-- type) is updated in place whoever owns it. That is done by resolving the
+-- insert's user_id to the existing owner, which makes ON CONFLICT fire on the
+-- (conversation_id, user_id, type) index and update that row. With shared
+-- drafts off the CASE yields NULL, user_id falls back to $2, and the behaviour
+-- is unchanged.
 INSERT INTO conversation_drafts (conversation_id, user_id, type, content, meta, updated_at)
-VALUES ($1, $2, $3, $4, $5, NOW())
+VALUES (
+    $1,
+    COALESCE(
+        CASE WHEN $6 THEN (
+            SELECT user_id FROM conversation_drafts
+            WHERE conversation_id = $1 AND type = $3
+            ORDER BY updated_at DESC
+            LIMIT 1
+        ) END,
+        $2
+    ),
+    $3, $4, $5, NOW())
 ON CONFLICT (conversation_id, user_id, type)
 DO UPDATE SET content = EXCLUDED.content, meta = EXCLUDED.meta, updated_at = NOW()
 RETURNING *;
 
 -- name: get-all-user-drafts
-SELECT cd.id, cd.conversation_id, cd.user_id, cd.type, cd.content, cd.meta, cd.created_at, cd.updated_at, c.uuid as conversation_uuid
+-- $2 = shared drafts. When enabled, drafts left by other agents are returned
+-- too; the caller filters them by conversation access using the assignment
+-- columns selected here.
+SELECT cd.id, cd.conversation_id, cd.user_id, cd.type, cd.content, cd.meta, cd.created_at, cd.updated_at,
+       c.uuid as conversation_uuid, c.assigned_user_id, c.assigned_team_id
 FROM conversation_drafts cd
 INNER JOIN conversations c ON cd.conversation_id = c.id
-WHERE cd.user_id = $1
+WHERE ($2 OR cd.user_id = $1)
 ORDER BY cd.updated_at DESC;
 
 -- name: delete-conversation-draft
+-- $5 = shared drafts; see upsert-conversation-draft.
 DELETE FROM conversation_drafts
 WHERE conversation_id IN (
   SELECT id FROM conversations
   WHERE ($1 > 0 AND id = $1) OR (NULLIF($2, '')::uuid IS NOT NULL AND uuid = NULLIF($2, '')::uuid)
-) AND user_id = $3
+) AND ($5 OR user_id = $3)
 AND ($4::text = '' OR type = $4::text);
 
 -- name: delete-stale-drafts

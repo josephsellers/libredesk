@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	amodels "github.com/abhinavxd/libredesk/internal/auth/models"
+	"github.com/abhinavxd/libredesk/internal/authz"
+	cmodels "github.com/abhinavxd/libredesk/internal/conversation/models"
 	"github.com/abhinavxd/libredesk/internal/envelope"
 	"github.com/valyala/fasthttp"
 	"github.com/zerodha/fastglue"
@@ -59,7 +61,7 @@ func handleUpsertConversationDraft(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.T("globals.messages.somethingWentWrong"), nil, envelope.InputError)
 	}
 
-	draft, err := app.conversation.UpsertConversationDraft(conv.ID, user.ID, req.Type, req.Content, req.Meta)
+	draft, err := app.conversation.UpsertConversationDraft(conv.ID, user.ID, req.Type, req.Content, req.Meta, app.setting.SharedDraftsEnabled())
 	if err != nil {
 		return sendErrorEnvelope(r, err)
 	}
@@ -67,11 +69,13 @@ func handleUpsertConversationDraft(r *fastglue.Request) error {
 	return r.SendEnvelope(draft)
 }
 
-// handleGetAllDrafts retrieves all drafts for the current user.
+// handleGetAllDrafts retrieves all drafts for the current user, plus those left
+// by other agents when shared drafts are enabled.
 func handleGetAllDrafts(r *fastglue.Request) error {
 	var (
-		app   = r.Context.(*App)
-		auser = r.RequestCtx.UserValue("user").(amodels.User)
+		app    = r.Context.(*App)
+		auser  = r.RequestCtx.UserValue("user").(amodels.User)
+		shared = app.setting.SharedDraftsEnabled()
 	)
 
 	user, err := app.user.GetAgentCachedOrLoad(auser.ID)
@@ -79,9 +83,23 @@ func handleGetAllDrafts(r *fastglue.Request) error {
 		return sendErrorEnvelope(r, err)
 	}
 
-	drafts, err := app.conversation.GetAllUserDrafts(user.ID)
+	drafts, err := app.conversation.GetAllUserDrafts(user.ID, shared)
 	if err != nil {
 		return sendErrorEnvelope(r, err)
+	}
+
+	// A shared draft is only visible if the agent can read its conversation, so
+	// enabling the setting never widens access beyond the conversations they
+	// already see.
+	if shared {
+		visible := make([]cmodels.ConversationDraft, 0, len(drafts))
+		for _, draft := range drafts {
+			if draft.UserID == int64(user.ID) ||
+				authz.CanReadAssignment(user, draft.AssignedUserID, draft.AssignedTeamID) {
+				visible = append(visible, draft)
+			}
+		}
+		drafts = visible
 	}
 
 	return r.SendEnvelope(drafts)
@@ -105,7 +123,7 @@ func handleDeleteConversationDraft(r *fastglue.Request) error {
 		return sendErrorEnvelope(r, err)
 	}
 
-	if err := app.conversation.DeleteConversationDraft(0, uuid, user.ID, draftType); err != nil {
+	if err := app.conversation.DeleteConversationDraft(0, uuid, user.ID, draftType, app.setting.SharedDraftsEnabled()); err != nil {
 		return sendErrorEnvelope(r, err)
 	}
 

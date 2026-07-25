@@ -531,6 +531,11 @@ type ConversationDraft struct {
 	CreatedAt        time.Time       `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time       `db:"updated_at" json:"updated_at"`
 	Meta             json.RawMessage `db:"meta" json:"meta"`
+
+	// Assignment of the parent conversation, used to filter shared drafts by
+	// conversation access. Not part of the draft itself.
+	AssignedUserID null.Int `db:"assigned_user_id" json:"-"`
+	AssignedTeamID null.Int `db:"assigned_team_id" json:"-"`
 }
 
 // MentionInput represents a mention in a private note from frontend.

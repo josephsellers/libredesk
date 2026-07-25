@@ -10,11 +10,15 @@ import (
 	"github.com/abhinavxd/libredesk/internal/envelope"
 )
 
-func (m *Manager) UpsertConversationDraft(conversationID, userID int, draftType, content string, meta json.RawMessage) (models.ConversationDraft, error) {
+// UpsertConversationDraft saves a draft for a conversation. With shared drafts
+// enabled an existing draft for the conversation and type is updated in place
+// whichever agent owns it, so a draft can be picked up by a colleague or left
+// by a bot; otherwise the draft is scoped to userID as usual.
+func (m *Manager) UpsertConversationDraft(conversationID, userID int, draftType, content string, meta json.RawMessage, shared bool) (models.ConversationDraft, error) {
 	var draft models.ConversationDraft
 	content = rewriteInlineImagesToCID(content)
 
-	if err := m.q.UpsertConversationDraft.Get(&draft, conversationID, userID, draftType, content, meta); err != nil {
+	if err := m.q.UpsertConversationDraft.Get(&draft, conversationID, userID, draftType, content, meta, shared); err != nil {
 		m.lo.Error("error upserting conversation draft", "conversation_id", conversationID, "user_id", userID, "error", err)
 		return draft, envelope.NewError(envelope.GeneralError, m.i18n.T("globals.messages.somethingWentWrong"), nil)
 	}
@@ -23,9 +27,12 @@ func (m *Manager) UpsertConversationDraft(conversationID, userID int, draftType,
 	return draft, nil
 }
 
-func (m *Manager) GetAllUserDrafts(userID int) ([]models.ConversationDraft, error) {
+// GetAllUserDrafts returns the drafts owned by userID, or every draft when
+// shared drafts are enabled. Shared results carry the parent conversation's
+// assignment so the caller can filter them by conversation access.
+func (m *Manager) GetAllUserDrafts(userID int, shared bool) ([]models.ConversationDraft, error) {
 	var drafts = make([]models.ConversationDraft, 0)
-	if err := m.q.GetAllUserDrafts.Select(&drafts, userID); err != nil {
+	if err := m.q.GetAllUserDrafts.Select(&drafts, userID, shared); err != nil {
 		m.lo.Error("error fetching user drafts", "user_id", userID, "error", err)
 		return nil, envelope.NewError(envelope.GeneralError, m.i18n.T("globals.messages.somethingWentWrong"), nil)
 	}
@@ -36,13 +43,14 @@ func (m *Manager) GetAllUserDrafts(userID int) ([]models.ConversationDraft, erro
 }
 
 // DeleteConversationDraft deletes a draft for a conversation by ID or UUID. An empty draftType deletes all types.
-func (m *Manager) DeleteConversationDraft(conversationID int, uuid string, userID int, draftType string) error {
+// With shared drafts enabled the draft is deleted whichever agent owns it.
+func (m *Manager) DeleteConversationDraft(conversationID int, uuid string, userID int, draftType string, shared bool) error {
 	var uuidParam any
 	if uuid != "" {
 		uuidParam = uuid
 	}
 
-	if _, err := m.q.DeleteConversationDraft.Exec(conversationID, uuidParam, userID, draftType); err != nil {
+	if _, err := m.q.DeleteConversationDraft.Exec(conversationID, uuidParam, userID, draftType, shared); err != nil {
 		m.lo.Error("error deleting conversation draft", "conversation_id", conversationID, "uuid", uuid, "user_id", userID, "error", err)
 		return envelope.NewError(envelope.GeneralError, m.i18n.T("globals.messages.somethingWentWrong"), nil)
 	}
